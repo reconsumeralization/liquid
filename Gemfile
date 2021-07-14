@@ -19,7 +19,7 @@ end
 
 group :test do
   gem 'rubocop', '~> 1.4', require: false
-  gem 'rubocop-shopify', '~> 1.0.7', require: false
+  gem 'rubocop-shopify', '~> 2.2.0', require: false
   gem 'rubocop-performance', require: false
 
   platform :mri, :truffleruby do
