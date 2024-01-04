@@ -1,7 +1,8 @@
 repo_name: reconsumeralization/liquid
 report_id: f764c5269543a04c5994e08de742133b
+version: 0.1
 repo_type: Public
-timestamp: '2023-11-09T16:25:03+00:00'
+timestamp: '2024-01-04T15:04:10+00:00'
 requested_by: dylanahsmith
 provider: github
 branch: master
@@ -16,6 +17,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Templating Languages & Extensions
   image_url: https://img.stackshare.io/service/1746/no-img-open-source.png
+  detection_source_url: https://github.com/reconsumeralization/liquid
   detection_source: Repo Metadata
 - name: Ruby
   description: A dynamic, interpreted, open source programming language with a focus
@@ -26,6 +28,7 @@ tools:
   category: Languages & Frameworks
   sub_category: Languages
   image_url: https://img.stackshare.io/service/989/ruby.png
+  detection_source_url: https://github.com/reconsumeralization/liquid
   detection_source: Repo Metadata
 - name: Git
   description: Fast, scalable, distributed revision control system
@@ -35,6 +38,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Version Control System
   image_url: https://img.stackshare.io/service/1046/git.png
+  detection_source_url: https://github.com/reconsumeralization/liquid
   detection_source: Repo Metadata
 - name: GitHub Actions
   description: Automate your workflow from idea to production
@@ -44,6 +48,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Continuous Integration
   image_url: https://img.stackshare.io/service/11563/actions.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/.github/workflows/liquid.yml
   detection_source: ".github/workflows/liquid.yml"
   last_updated_by: Peter Zhu
   last_updated_on: 2020-10-07 17:29:39.000000000 Z
@@ -57,7 +62,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Code Review
   image_url: https://img.stackshare.io/service/2643/rubocop.png
-  detection_source_url: Gemfile
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/Gemfile
   detection_source: Gemfile
   last_updated_by: Dylan Thacker-Smith
   last_updated_on: 2014-03-14 03:18:57.000000000 Z
@@ -69,6 +74,7 @@ tools:
   category: Build, Test, Deploy
   sub_category: Package Managers
   image_url: https://img.stackshare.io/service/12795/5jL6-BA5_400x400.jpeg
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/liquid.gemspec
   detection_source: liquid.gemspec
   last_updated_by: Tobias Lütke
   last_updated_on: 2008-06-23 13:34:34.000000000 Z
@@ -81,6 +87,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/19069/default_5f9f148b380c6e53dd11ecf4121a9aa0355b667e.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/Gemfile
   detection_source: Gemfile
   last_updated_by: Jerry Liu
   last_updated_on: 2017-01-20 21:04:42.000000000 Z
@@ -93,6 +100,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/19745/default_9441b9831c402e8b1bbbeac1030603f41221911e.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/Gemfile
   detection_source: Gemfile
   last_updated_by: Florian Weingarten
   last_updated_on: 2019-04-17 17:33:59.000000000 Z
@@ -106,6 +114,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/18818/default_f36df1cfa9ff6061d7f9b4879088be8538581c49.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/liquid.gemspec
   detection_source: liquid.gemspec
   last_updated_by: Mike Angell
   last_updated_on: 2019-08-31 11:58:33.000000000 Z
@@ -119,7 +128,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/18812/default_f582e4648f4682adb72d2b201218cda7f8e894ac.png
-  detection_source_url: liquid.gemspec
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/liquid.gemspec
   detection_source: liquid.gemspec
   last_updated_by: Dylan Thacker-Smith
   last_updated_on: 2020-07-23 20:23:18.000000000 Z
@@ -133,6 +142,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/19003/default_ed0106f3a65a9fdb4ffde124a531663be2de70ba.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/Gemfile
   detection_source: Gemfile
   last_updated_by: Dylan Thacker-Smith
   last_updated_on: 2021-02-21 17:01:03.000000000 Z
@@ -145,6 +155,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/19598/default_88694c513ad6229305b102ea8a6b3d3fbdcd342e.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/Gemfile
   detection_source: Gemfile
   last_updated_by: Florian Weingarten
   last_updated_on: 2019-04-17 17:33:59.000000000 Z
@@ -157,6 +168,7 @@ tools:
   category: Libraries
   sub_category: RubyGems Packages
   image_url: https://img.stackshare.io/package/18923/default_401820e785202ca0018a36ea3e12ee9a92b3efac.png
+  detection_source_url: https://github.com/reconsumeralization/liquid/blob/master/Gemfile
   detection_source: Gemfile
   last_updated_by: Ashwin Maroli
   last_updated_on: 2019-05-16 13:44:27.000000000 Z
