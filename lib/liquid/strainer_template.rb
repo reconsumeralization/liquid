@@ -31,6 +31,15 @@ module Liquid
         filter_methods.include?(method.to_s)
       end
 
+      def inherited(subclass)
+        super
+        subclass.instance_variable_set(:@filter_methods, @filter_methods.dup)
+      end
+
+      def filter_method_names
+        filter_methods.map(&:to_s).to_a
+      end
+
       private
 
       def filter_methods

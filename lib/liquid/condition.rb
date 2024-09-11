@@ -8,7 +8,7 @@ module Liquid
   #   c = Condition.new(1, '==', 1)
   #   c.evaluate #=> true
   #
-  class Condition #:nodoc:
+  class Condition # :nodoc:
     @@operators = {
       '==' => ->(cond, left, right) {  cond.send(:equal_variables, left, right) },
       '!=' => ->(cond, left, right) { !cond.send(:equal_variables, left, right) },
@@ -61,7 +61,7 @@ module Liquid
       @child_condition = nil
     end
 
-    def evaluate(context = Context.new)
+    def evaluate(context = deprecated_default_context)
       condition = self
       result = nil
       loop do
@@ -69,9 +69,9 @@ module Liquid
 
         case condition.child_relation
         when :or
-          break if result
+          break if Liquid::Utils.to_liquid_value(result)
         when :and
-          break unless result
+          break unless Liquid::Utils.to_liquid_value(result)
         else
           break
         end
@@ -134,8 +134,8 @@ module Liquid
       # return this as the result.
       return context.evaluate(left) if op.nil?
 
-      left  = context.evaluate(left)
-      right = context.evaluate(right)
+      left  = Liquid::Utils.to_liquid_value(context.evaluate(left))
+      right = Liquid::Utils.to_liquid_value(context.evaluate(right))
 
       operation = self.class.operators[op] || raise(Liquid::ArgumentError, "Unknown operator #{op}")
 
@@ -150,11 +150,19 @@ module Liquid
       end
     end
 
+    def deprecated_default_context
+      warn("DEPRECATION WARNING: Condition#evaluate without a context argument is deprecated" \
+        " and will be removed from Liquid 6.0.0.")
+      Context.new
+    end
+
     class ParseTreeVisitor < Liquid::ParseTreeVisitor
       def children
         [
-          @node.left, @node.right,
-          @node.child_condition, @node.attachment
+          @node.left,
+          @node.right,
+          @node.child_condition,
+          @node.attachment
         ].compact
       end
     end

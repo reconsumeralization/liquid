@@ -4,8 +4,8 @@ require 'English'
 
 module Liquid
   class BlockBody
-    LiquidTagToken      = /\A\s*(\w+)\s*(.*?)\z/o
-    FullToken           = /\A#{TagStart}#{WhitespaceControl}?(\s*)(\w+)(\s*)(.*?)#{WhitespaceControl}?#{TagEnd}\z/om
+    LiquidTagToken      = /\A\s*(#{TagName})\s*(.*?)\z/o
+    FullToken           = /\A#{TagStart}#{WhitespaceControl}?(\s*)(#{TagName})(\s*)(.*?)#{WhitespaceControl}?#{TagEnd}\z/om
     ContentOfVariable   = /\A#{VariableStart}#{WhitespaceControl}?(.*?)#{WhitespaceControl}?#{VariableEnd}\z/om
     WhitespaceOrNothing = /\A\s*\z/
     TAGSTART            = "{%"
@@ -37,7 +37,7 @@ module Liquid
 
     private def parse_for_liquid_tag(tokenizer, parse_context)
       while (token = tokenizer.shift)
-        unless token.empty? || token =~ WhitespaceOrNothing
+        unless token.empty? || token.match?(WhitespaceOrNothing)
           unless token =~ LiquidTagToken
             # line isn't empty but didn't match tag syntax, yield and let the
             # caller raise a syntax error
@@ -45,6 +45,12 @@ module Liquid
           end
           tag_name = Regexp.last_match(1)
           markup   = Regexp.last_match(2)
+
+          if tag_name == 'liquid'
+            parse_context.line_number -= 1
+            next parse_liquid_tag(markup, parse_context)
+          end
+
           unless (tag = registered_tags[tag_name])
             # end parsing if we reach an unknown tag and let the caller decide
             # determine how to proceed
@@ -109,14 +115,22 @@ module Liquid
       end
     end
 
-    private def parse_for_document(tokenizer, parse_context)
+    private def handle_invalid_tag_token(token, parse_context)
+      if token.end_with?('%}')
+        yield token, token
+      else
+        BlockBody.raise_missing_tag_terminator(token, parse_context)
+      end
+    end
+
+    private def parse_for_document(tokenizer, parse_context, &block)
       while (token = tokenizer.shift)
         next if token.empty?
         case
         when token.start_with?(TAGSTART)
           whitespace_handler(token, parse_context)
           unless token =~ FullToken
-            BlockBody.raise_missing_tag_terminator(token, parse_context)
+            return handle_invalid_tag_token(token, parse_context, &block)
           end
           tag_name = Regexp.last_match(2)
           markup   = Regexp.last_match(4)
@@ -150,7 +164,7 @@ module Liquid
           end
           parse_context.trim_whitespace = false
           @nodelist << token
-          @blank &&= !!(token =~ WhitespaceOrNothing)
+          @blank &&= token.match?(WhitespaceOrNothing)
         end
         parse_context.line_number = tokenizer.line_number
       end
@@ -231,8 +245,8 @@ module Liquid
     end
 
     def create_variable(token, parse_context)
-      token.scan(ContentOfVariable) do |content|
-        markup = content.first
+      if token =~ ContentOfVariable
+        markup = Regexp.last_match(1)
         return Variable.new(markup, parse_context)
       end
       BlockBody.raise_missing_variable_terminator(token, parse_context)

@@ -15,7 +15,7 @@ module Liquid
   #   template.render('user_name' => 'bob')
   #
   class Template
-    attr_accessor :root
+    attr_accessor :root, :name
     attr_reader :resource_limits, :warnings
 
     class TagRegistry
@@ -167,15 +167,14 @@ module Liquid
 
       output = nil
 
-      context_register = context.registers.is_a?(StaticRegisters) ? context.registers.static : context.registers
-
       case args.last
       when Hash
         options = args.pop
         output  = options[:output] if options[:output]
+        static_registers = context.registers.static
 
         options[:registers]&.each do |key, register|
-          context_register[key] = register
+          static_registers[key] = register
         end
 
         apply_options_to_context(context, options)
@@ -189,6 +188,8 @@ module Liquid
       if @profiling && context.profiler.nil?
         @profiler = context.profiler = Liquid::Profiler.new
       end
+
+      context.template_name ||= name
 
       begin
         # render the nodelist.

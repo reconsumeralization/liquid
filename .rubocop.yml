@@ -10,11 +10,20 @@ Performance:
   Enabled: true
 
 AllCops:
-  TargetRubyVersion: 2.4
+  TargetRubyVersion: 2.7
   NewCops: disable
+  SuggestExtensions: false
   Exclude:
     - 'vendor/bundle/**/*'
 
 Naming/MethodName:
   Exclude:
     - 'example/server/liquid_servlet.rb'
+
+Style/ClassMethodsDefinitions:
+  Enabled: false
+
+# liquid filter calls were being mistaken to be calls on arrays
+Style/ConcatArrayLiterals:
+  Exclude:
+    - 'test/integration/standard_filter_test.rb'

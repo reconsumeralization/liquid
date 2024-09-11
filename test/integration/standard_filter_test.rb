@@ -3,10 +3,6 @@
 
 require 'test_helper'
 
-class Filters
-  include Liquid::StandardFilters
-end
-
 class TestThing
   attr_reader :foo
 
@@ -29,8 +25,24 @@ class TestThing
 end
 
 class TestDrop < Liquid::Drop
-  def test
-    "testfoo"
+  def initialize(value:)
+    @value = value
+  end
+
+  attr_reader :value
+
+  def registers
+    { @value => @context.registers[@value] }
+  end
+end
+
+class TestModel
+  def initialize(value:)
+    @value = value
+  end
+
+  def to_liquid
+    TestDrop.new(value: @value)
   end
 end
 
@@ -53,10 +65,13 @@ class NumberLikeThing < Liquid::Drop
 end
 
 class StandardFiltersTest < Minitest::Test
+  Filters = Class.new(Liquid::StrainerTemplate)
+  Filters.add_filter(Liquid::StandardFilters)
+
   include Liquid
 
   def setup
-    @filters = Filters.new
+    @filters = Filters.new(Context.new)
   end
 
   def test_size
@@ -94,6 +109,10 @@ class StandardFiltersTest < Minitest::Test
     assert_raises(Liquid::ArgumentError) do
       @filters.slice('foobar', 0, "")
     end
+    assert_equal("", @filters.slice("foobar", 0, -(1 << 64)))
+    assert_equal("foobar", @filters.slice("foobar", 0, 1 << 63))
+    assert_equal("", @filters.slice("foobar", 1 << 63, 6))
+    assert_equal("", @filters.slice("foobar", -(1 << 63), 6))
   end
 
   def test_slice_on_arrays
@@ -108,6 +127,10 @@ class StandardFiltersTest < Minitest::Test
     assert_equal(%w(r), @filters.slice(input, -1))
     assert_equal(%w(), @filters.slice(input, 100, 10))
     assert_equal(%w(), @filters.slice(input, -100, 10))
+    assert_equal([], @filters.slice(input, 0, -(1 << 64)))
+    assert_equal(input, @filters.slice(input, 0, 1 << 63))
+    assert_equal([], @filters.slice(input, 1 << 63, 6))
+    assert_equal([], @filters.slice(input, -(1 << 63), 6))
   end
 
   def test_truncate
@@ -117,6 +140,8 @@ class StandardFiltersTest < Minitest::Test
     assert_equal('1234567890', @filters.truncate('1234567890'))
     assert_equal("测试...", @filters.truncate("测试测试测试测试", 5))
     assert_equal('12341', @filters.truncate("1234567890", 5, 1))
+    assert_equal("foobar", @filters.truncate("foobar", 1 << 63))
+    assert_equal("...", @filters.truncate("foobar", -(1 << 63)))
   end
 
   def test_split
@@ -145,6 +170,40 @@ class StandardFiltersTest < Minitest::Test
     assert_equal('&lt;strong&gt;Hulk&lt;/strong&gt;', @filters.escape_once('&lt;strong&gt;Hulk</strong>'))
   end
 
+  def test_base64_encode
+    assert_equal('b25lIHR3byB0aHJlZQ==', @filters.base64_encode('one two three'))
+    assert_equal('', @filters.base64_encode(nil))
+  end
+
+  def test_base64_decode
+    assert_equal('one two three', @filters.base64_decode('b25lIHR3byB0aHJlZQ=='))
+
+    exception = assert_raises(Liquid::ArgumentError) do
+      @filters.base64_decode("invalidbase64")
+    end
+
+    assert_equal('Liquid error: invalid base64 provided to base64_decode', exception.message)
+  end
+
+  def test_base64_url_safe_encode
+    assert_equal(
+      'YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXogQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVogMTIzNDU2Nzg5MCAhQCMkJV4mKigpLT1fKy8_Ljo7W117fVx8',
+      @filters.base64_url_safe_encode('abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890 !@#$%^&*()-=_+/?.:;[]{}\|'),
+    )
+    assert_equal('', @filters.base64_url_safe_encode(nil))
+  end
+
+  def test_base64_url_safe_decode
+    assert_equal(
+      'abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ 1234567890 !@#$%^&*()-=_+/?.:;[]{}\|',
+      @filters.base64_url_safe_decode('YWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXogQUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVogMTIzNDU2Nzg5MCAhQCMkJV4mKigpLT1fKy8_Ljo7W117fVx8'),
+    )
+    exception = assert_raises(Liquid::ArgumentError) do
+      @filters.base64_url_safe_decode("invalidbase64")
+    end
+    assert_equal('Liquid error: invalid base64 provided to base64_url_safe_decode', exception.message)
+  end
+
   def test_url_encode
     assert_equal('foo%2B1%40example.com', @filters.url_encode('foo+1@example.com'))
     assert_equal('1', @filters.url_encode(1))
@@ -171,13 +230,15 @@ class StandardFiltersTest < Minitest::Test
     assert_equal('one two three', @filters.truncatewords('one two three'))
     assert_equal(
       'Two small (13&#8221; x 5.5&#8221; x 10&#8221; high) baskets fit inside one large basket (13&#8221;...',
-      @filters.truncatewords('Two small (13&#8221; x 5.5&#8221; x 10&#8221; high) baskets fit inside one large basket (13&#8221; x 16&#8221; x 10.5&#8221; high) with cover.', 15)
+      @filters.truncatewords('Two small (13&#8221; x 5.5&#8221; x 10&#8221; high) baskets fit inside one large basket (13&#8221; x 16&#8221; x 10.5&#8221; high) with cover.', 15),
     )
     assert_equal("测试测试测试测试", @filters.truncatewords('测试测试测试测试', 5))
     assert_equal('one two1', @filters.truncatewords("one two three", 2, 1))
     assert_equal('one two three...', @filters.truncatewords("one  two\tthree\nfour", 3))
     assert_equal('one two...', @filters.truncatewords("one two three four", 2))
     assert_equal('one...', @filters.truncatewords("one two three four", 0))
+    assert_equal('one two three four', @filters.truncatewords("one two three four", 1 << 31))
+    assert_equal('one...', @filters.truncatewords("one two three four", -(1 << 32)))
   end
 
   def test_strip_html
@@ -221,8 +282,8 @@ class StandardFiltersTest < Minitest::Test
       { "price" => 1, "handle" => "gamma" },
       { "price" => 2, "handle" => "epsilon" },
       { "price" => 4, "handle" => "alpha" },
-      { "handle" => "delta" },
       { "handle" => "beta" },
+      { "handle" => "delta" },
     ]
     assert_equal(expectation, @filters.sort(input, "price"))
   end
@@ -325,8 +386,9 @@ class StandardFiltersTest < Minitest::Test
     assert_equal(["foo"], @filters.uniq("foo"))
     assert_equal([1, 3, 2, 4], @filters.uniq([1, 1, 3, 2, 3, 1, 4, 3, 2, 1]))
     assert_equal([{ "a" => 1 }, { "a" => 3 }, { "a" => 2 }], @filters.uniq([{ "a" => 1 }, { "a" => 3 }, { "a" => 1 }, { "a" => 2 }], "a"))
-    testdrop = TestDrop.new
-    assert_equal([testdrop], @filters.uniq([testdrop, TestDrop.new], 'test'))
+    test_drop = TestDrop.new(value: "test")
+    test_drop_alternate = TestDrop.new(value: "test")
+    assert_equal([test_drop], @filters.uniq([test_drop, test_drop_alternate], 'value'))
   end
 
   def test_uniq_empty_array
@@ -371,8 +433,11 @@ class StandardFiltersTest < Minitest::Test
 
   def test_map
     assert_equal([1, 2, 3, 4], @filters.map([{ "a" => 1 }, { "a" => 2 }, { "a" => 3 }, { "a" => 4 }], 'a'))
-    assert_template_result('abc', "{{ ary | map:'foo' | map:'bar' }}",
-      'ary' => [{ 'foo' => { 'bar' => 'a' } }, { 'foo' => { 'bar' => 'b' } }, { 'foo' => { 'bar' => 'c' } }])
+    assert_template_result(
+      'abc',
+      "{{ ary | map:'foo' | map:'bar' }}",
+      { 'ary' => [{ 'foo' => { 'bar' => 'a' } }, { 'foo' => { 'bar' => 'b' } }, { 'foo' => { 'bar' => 'c' } }] },
+    )
   end
 
   def test_map_doesnt_call_arbitrary_stuff
@@ -382,18 +447,31 @@ class StandardFiltersTest < Minitest::Test
 
   def test_map_calls_to_liquid
     t = TestThing.new
-    assert_template_result("woot: 1", '{{ foo | map: "whatever" }}', "foo" => [t])
+    assert_template_result("woot: 1", '{{ foo | map: "whatever" }}', { "foo" => [t] })
+  end
+
+  def test_map_calls_context=
+    model = TestModel.new(value: :test)
+
+    template = Template.parse('{{ foo | map: "registers" }}')
+    template.registers[:test] = 1234
+    template.assigns['foo'] = [model]
+
+    assert_template_result("{:test=>1234}", template.render!)
   end
 
   def test_map_on_hashes
-    assert_template_result("4217", '{{ thing | map: "foo" | map: "bar" }}',
-      "thing" => { "foo" => [{ "bar" => 42 }, { "bar" => 17 }] })
+    assert_template_result(
+      "4217",
+      '{{ thing | map: "foo" | map: "bar" }}',
+      { "thing" => { "foo" => [{ "bar" => 42 }, { "bar" => 17 }] } },
+    )
   end
 
   def test_legacy_map_on_hashes_with_dynamic_key
     template = "{% assign key = 'foo' %}{{ thing | map: key | map: 'bar' }}"
     hash     = { "foo" => { "bar" => 42 } }
-    assert_template_result("42", template, "thing" => hash)
+    assert_template_result("42", template, { "thing" => hash })
   end
 
   def test_sort_calls_to_liquid
@@ -403,10 +481,10 @@ class StandardFiltersTest < Minitest::Test
   end
 
   def test_map_over_proc
-    drop  = TestDrop.new
+    drop  = TestDrop.new(value: "testfoo")
     p     = proc { drop }
-    templ = '{{ procs | map: "test" }}'
-    assert_template_result("testfoo", templ, "procs" => [p])
+    output = Liquid::Template.parse('{{ procs | map: "value" }}').render!({ "procs" => [p] })
+    assert_equal("testfoo", output)
   end
 
   def test_map_over_drops_returning_procs
@@ -418,12 +496,13 @@ class StandardFiltersTest < Minitest::Test
         "proc" => -> { "bar" },
       },
     ]
-    templ = '{{ drops | map: "proc" }}'
-    assert_template_result("foobar", templ, "drops" => drops)
+    output = Liquid::Template.parse('{{ drops | map: "proc" }}').render!({ "drops" => drops })
+    assert_equal("foobar", output)
   end
 
   def test_map_works_on_enumerables
-    assert_template_result("123", '{{ foo | map: "foo" }}', "foo" => TestEnumerable.new)
+    output = Liquid::Template.parse('{{ foo | map: "foo" }}').render!({ "foo" => TestEnumerable.new })
+    assert_equal("123", output)
   end
 
   def test_map_returns_empty_on_2d_input_array
@@ -450,16 +529,16 @@ class StandardFiltersTest < Minitest::Test
   end
 
   def test_sort_works_on_enumerables
-    assert_template_result("213", '{{ foo | sort: "bar" | map: "foo" }}', "foo" => TestEnumerable.new)
+    assert_template_result("213", '{{ foo | sort: "bar" | map: "foo" }}', { "foo" => TestEnumerable.new })
   end
 
   def test_first_and_last_call_to_liquid
-    assert_template_result('foobar', '{{ foo | first }}', 'foo' => [ThingWithToLiquid.new])
-    assert_template_result('foobar', '{{ foo | last }}', 'foo' => [ThingWithToLiquid.new])
+    assert_template_result('foobar', '{{ foo | first }}', { 'foo' => [ThingWithToLiquid.new] })
+    assert_template_result('foobar', '{{ foo | last }}', { 'foo' => [ThingWithToLiquid.new] })
   end
 
   def test_truncate_calls_to_liquid
-    assert_template_result("wo...", '{{ foo | truncate: 5 }}', "foo" => TestThing.new)
+    assert_template_result("wo...", '{{ foo | truncate: 5 }}', { "foo" => TestThing.new })
   end
 
   def test_date
@@ -501,19 +580,31 @@ class StandardFiltersTest < Minitest::Test
   end
 
   def test_replace
-    assert_equal('2 2 2 2', @filters.replace('1 1 1 1', '1', 2))
+    assert_equal('b b b b', @filters.replace('a a a a', 'a', 'b'))
     assert_equal('2 2 2 2', @filters.replace('1 1 1 1', 1, 2))
-    assert_equal('2 1 1 1', @filters.replace_first('1 1 1 1', '1', 2))
+    assert_equal('1 1 1 1', @filters.replace('1 1 1 1', 2, 3))
+    assert_template_result('2 2 2 2', "{{ '1 1 1 1' | replace: '1', 2 }}")
+
+    assert_equal('b a a a', @filters.replace_first('a a a a', 'a', 'b'))
     assert_equal('2 1 1 1', @filters.replace_first('1 1 1 1', 1, 2))
+    assert_equal('1 1 1 1', @filters.replace_first('1 1 1 1', 2, 3))
     assert_template_result('2 1 1 1', "{{ '1 1 1 1' | replace_first: '1', 2 }}")
+
+    assert_equal('a a a b', @filters.replace_last('a a a a', 'a', 'b'))
+    assert_equal('1 1 1 2', @filters.replace_last('1 1 1 1', 1, 2))
+    assert_equal('1 1 1 1', @filters.replace_last('1 1 1 1', 2, 3))
+    assert_template_result('1 1 1 2', "{{ '1 1 1 1' | replace_last: '1', 2 }}")
   end
 
   def test_remove
     assert_equal('   ', @filters.remove("a a a a", 'a'))
-    assert_equal('   ', @filters.remove("1 1 1 1", 1))
-    assert_equal('a a a', @filters.remove_first("a a a a", 'a '))
-    assert_equal(' 1 1 1', @filters.remove_first("1 1 1 1", 1))
-    assert_template_result('a a a', "{{ 'a a a a' | remove_first: 'a ' }}")
+    assert_template_result('   ', "{{ '1 1 1 1' | remove: 1 }}")
+
+    assert_equal('b a a', @filters.remove_first("a b a a", 'a '))
+    assert_template_result(' 1 1 1', "{{ '1 1 1 1' | remove_first: 1 }}")
+
+    assert_equal('a a b', @filters.remove_last("a a b a", ' a'))
+    assert_template_result('1 1 1 ', "{{ '1 1 1 1' | remove_last: 1 }}")
   end
 
   def test_pipes_in_string_arguments
@@ -521,42 +612,42 @@ class StandardFiltersTest < Minitest::Test
   end
 
   def test_strip
-    assert_template_result('ab c', "{{ source | strip }}", 'source' => " ab c  ")
-    assert_template_result('ab c', "{{ source | strip }}", 'source' => " \tab c  \n \t")
+    assert_template_result('ab c', "{{ source | strip }}", { 'source' => " ab c  " })
+    assert_template_result('ab c', "{{ source | strip }}", { 'source' => " \tab c  \n \t" })
   end
 
   def test_lstrip
-    assert_template_result('ab c  ', "{{ source | lstrip }}", 'source' => " ab c  ")
-    assert_template_result("ab c  \n \t", "{{ source | lstrip }}", 'source' => " \tab c  \n \t")
+    assert_template_result('ab c  ', "{{ source | lstrip }}", { 'source' => " ab c  " })
+    assert_template_result("ab c  \n \t", "{{ source | lstrip }}", { 'source' => " \tab c  \n \t" })
   end
 
   def test_rstrip
-    assert_template_result(" ab c", "{{ source | rstrip }}", 'source' => " ab c  ")
-    assert_template_result(" \tab c", "{{ source | rstrip }}", 'source' => " \tab c  \n \t")
+    assert_template_result(" ab c", "{{ source | rstrip }}", { 'source' => " ab c  " })
+    assert_template_result(" \tab c", "{{ source | rstrip }}", { 'source' => " \tab c  \n \t" })
   end
 
   def test_strip_newlines
-    assert_template_result('abc', "{{ source | strip_newlines }}", 'source' => "a\nb\nc")
-    assert_template_result('abc', "{{ source | strip_newlines }}", 'source' => "a\r\nb\nc")
+    assert_template_result('abc', "{{ source | strip_newlines }}", { 'source' => "a\nb\nc" })
+    assert_template_result('abc', "{{ source | strip_newlines }}", { 'source' => "a\r\nb\nc" })
   end
 
   def test_newlines_to_br
-    assert_template_result("a<br />\nb<br />\nc", "{{ source | newline_to_br }}", 'source' => "a\nb\nc")
-    assert_template_result("a<br />\nb<br />\nc", "{{ source | newline_to_br }}", 'source' => "a\r\nb\nc")
+    assert_template_result("a<br />\nb<br />\nc", "{{ source | newline_to_br }}", { 'source' => "a\nb\nc" })
+    assert_template_result("a<br />\nb<br />\nc", "{{ source | newline_to_br }}", { 'source' => "a\r\nb\nc" })
   end
 
   def test_plus
     assert_template_result("2", "{{ 1 | plus:1 }}")
     assert_template_result("2.0", "{{ '1' | plus:'1.0' }}")
 
-    assert_template_result("5", "{{ price | plus:'2' }}", 'price' => NumberLikeThing.new(3))
+    assert_template_result("5", "{{ price | plus:'2' }}", { 'price' => NumberLikeThing.new(3) })
   end
 
   def test_minus
-    assert_template_result("4", "{{ input | minus:operand }}", 'input' => 5, 'operand' => 1)
+    assert_template_result("4", "{{ input | minus:operand }}", { 'input' => 5, 'operand' => 1 })
     assert_template_result("2.3", "{{ '4.3' | minus:'2' }}")
 
-    assert_template_result("5", "{{ price | minus:'2' }}", 'price' => NumberLikeThing.new(7))
+    assert_template_result("5", "{{ price | minus:'2' }}", { 'price' => NumberLikeThing.new(7) })
   end
 
   def test_abs
@@ -579,7 +670,7 @@ class StandardFiltersTest < Minitest::Test
     assert_template_result("7.25", "{{ 0.0725 | times:100 }}")
     assert_template_result("-7.25", '{{ "-0.0725" | times:100 }}')
     assert_template_result("7.25", '{{ "-0.0725" | times: -100 }}')
-    assert_template_result("4", "{{ price | times:2 }}", 'price' => NumberLikeThing.new(2))
+    assert_template_result("4", "{{ price | times:2 }}", { 'price' => NumberLikeThing.new(2) })
   end
 
   def test_divided_by
@@ -594,7 +685,7 @@ class StandardFiltersTest < Minitest::Test
       assert_template_result("4", "{{ 1 | modulo: 0 }}")
     end
 
-    assert_template_result("5", "{{ price | divided_by:2 }}", 'price' => NumberLikeThing.new(10))
+    assert_template_result("5", "{{ price | divided_by:2 }}", { 'price' => NumberLikeThing.new(10) })
   end
 
   def test_modulo
@@ -603,39 +694,39 @@ class StandardFiltersTest < Minitest::Test
       assert_template_result("4", "{{ 1 | modulo: 0 }}")
     end
 
-    assert_template_result("1", "{{ price | modulo:2 }}", 'price' => NumberLikeThing.new(3))
+    assert_template_result("1", "{{ price | modulo:2 }}", { 'price' => NumberLikeThing.new(3) })
   end
 
   def test_round
-    assert_template_result("5", "{{ input | round }}", 'input' => 4.6)
+    assert_template_result("5", "{{ input | round }}", { 'input' => 4.6 })
     assert_template_result("4", "{{ '4.3' | round }}")
-    assert_template_result("4.56", "{{ input | round: 2 }}", 'input' => 4.5612)
+    assert_template_result("4.56", "{{ input | round: 2 }}", { 'input' => 4.5612 })
     assert_raises(Liquid::FloatDomainError) do
       assert_template_result("4", "{{ 1.0 | divided_by: 0.0 | round }}")
     end
 
-    assert_template_result("5", "{{ price | round }}", 'price' => NumberLikeThing.new(4.6))
-    assert_template_result("4", "{{ price | round }}", 'price' => NumberLikeThing.new(4.3))
+    assert_template_result("5", "{{ price | round }}", { 'price' => NumberLikeThing.new(4.6) })
+    assert_template_result("4", "{{ price | round }}", { 'price' => NumberLikeThing.new(4.3) })
   end
 
   def test_ceil
-    assert_template_result("5", "{{ input | ceil }}", 'input' => 4.6)
+    assert_template_result("5", "{{ input | ceil }}", { 'input' => 4.6 })
     assert_template_result("5", "{{ '4.3' | ceil }}")
     assert_raises(Liquid::FloatDomainError) do
       assert_template_result("4", "{{ 1.0 | divided_by: 0.0 | ceil }}")
     end
 
-    assert_template_result("5", "{{ price | ceil }}", 'price' => NumberLikeThing.new(4.6))
+    assert_template_result("5", "{{ price | ceil }}", { 'price' => NumberLikeThing.new(4.6) })
   end
 
   def test_floor
-    assert_template_result("4", "{{ input | floor }}", 'input' => 4.6)
+    assert_template_result("4", "{{ input | floor }}", { 'input' => 4.6 })
     assert_template_result("4", "{{ '4.3' | floor }}")
     assert_raises(Liquid::FloatDomainError) do
       assert_template_result("4", "{{ 1.0 | divided_by: 0.0 | floor }}")
     end
 
-    assert_template_result("5", "{{ price | floor }}", 'price' => NumberLikeThing.new(5.4))
+    assert_template_result("5", "{{ price | floor }}", { 'price' => NumberLikeThing.new(5.4) })
   end
 
   def test_at_most
@@ -644,9 +735,9 @@ class StandardFiltersTest < Minitest::Test
     assert_template_result("5", "{{ 5 | at_most:6 }}")
 
     assert_template_result("4.5", "{{ 4.5 | at_most:5 }}")
-    assert_template_result("5", "{{ width | at_most:5 }}", 'width' => NumberLikeThing.new(6))
-    assert_template_result("4", "{{ width | at_most:5 }}", 'width' => NumberLikeThing.new(4))
-    assert_template_result("4", "{{ 5 | at_most: width }}", 'width' => NumberLikeThing.new(4))
+    assert_template_result("5", "{{ width | at_most:5 }}", { 'width' => NumberLikeThing.new(6) })
+    assert_template_result("4", "{{ width | at_most:5 }}", { 'width' => NumberLikeThing.new(4) })
+    assert_template_result("4", "{{ 5 | at_most: width }}", { 'width' => NumberLikeThing.new(4) })
   end
 
   def test_at_least
@@ -655,9 +746,9 @@ class StandardFiltersTest < Minitest::Test
     assert_template_result("6", "{{ 5 | at_least:6 }}")
 
     assert_template_result("5", "{{ 4.5 | at_least:5 }}")
-    assert_template_result("6", "{{ width | at_least:5 }}", 'width' => NumberLikeThing.new(6))
-    assert_template_result("5", "{{ width | at_least:5 }}", 'width' => NumberLikeThing.new(4))
-    assert_template_result("6", "{{ 5 | at_least: width }}", 'width' => NumberLikeThing.new(6))
+    assert_template_result("6", "{{ width | at_least:5 }}", { 'width' => NumberLikeThing.new(6) })
+    assert_template_result("5", "{{ width | at_least:5 }}", { 'width' => NumberLikeThing.new(4) })
+    assert_template_result("6", "{{ 5 | at_least: width }}", { 'width' => NumberLikeThing.new(6) })
   end
 
   def test_append
@@ -690,6 +781,8 @@ class StandardFiltersTest < Minitest::Test
     assert_equal("bar", @filters.default([], "bar"))
     assert_equal("bar", @filters.default({}, "bar"))
     assert_template_result('bar', "{{ false | default: 'bar' }}")
+    assert_template_result('bar', "{{ drop | default: 'bar' }}", { 'drop' => BooleanDrop.new(false) })
+    assert_template_result('Yay', "{{ drop | default: 'bar' }}", { 'drop' => BooleanDrop.new(true) })
   end
 
   def test_default_handle_false
@@ -700,6 +793,8 @@ class StandardFiltersTest < Minitest::Test
     assert_equal("bar", @filters.default([], "bar", "allow_false" => true))
     assert_equal("bar", @filters.default({}, "bar", "allow_false" => true))
     assert_template_result('false', "{{ false | default: 'bar', allow_false: true }}")
+    assert_template_result('Nay', "{{ drop | default: 'bar', allow_false: true }}", { 'drop' => BooleanDrop.new(false) })
+    assert_template_result('Yay', "{{ drop | default: 'bar', allow_false: true }}", { 'drop' => BooleanDrop.new(true) })
   end
 
   def test_cannot_access_private_methods
@@ -726,6 +821,18 @@ class StandardFiltersTest < Minitest::Test
 
     assert_equal(expectation, @filters.where(input, "ok", true))
     assert_equal(expectation, @filters.where(input, "ok"))
+  end
+
+  def test_where_string_keys
+    input = [
+      "alpha", "beta", "gamma", "delta"
+    ]
+
+    expectation = [
+      "beta",
+    ]
+
+    assert_equal(expectation, @filters.where(input, "be"))
   end
 
   def test_where_no_key_set
@@ -773,7 +880,7 @@ class StandardFiltersTest < Minitest::Test
   end
 
   def test_all_filters_never_raise_non_liquid_exception
-    test_drop = TestDrop.new
+    test_drop = TestDrop.new(value: "test")
     test_drop.context = Context.new
     test_enum = TestEnumerable.new
     test_enum.context = Context.new
@@ -798,19 +905,14 @@ class StandardFiltersTest < Minitest::Test
       { 1 => "bar" },
       ["foo", 123, nil, true, false, Drop, ["foo"], { foo: "bar" }],
     ]
-    test_types.each do |first|
-      test_types.each do |other|
-        (@filters.methods - Object.methods).each do |method|
-          arg_count = @filters.method(method).arity
-          arg_count *= -1 if arg_count < 0
-          inputs = [first]
-          inputs << ([other] * (arg_count - 1)) if arg_count > 1
-          begin
-            @filters.send(method, *inputs)
-          rescue Liquid::ArgumentError, Liquid::ZeroDivisionError
-            nil
-          end
-        end
+    StandardFilters.public_instance_methods(false).each do |method|
+      arg_count = @filters.method(method).arity
+      arg_count *= -1 if arg_count < 0
+
+      test_types.repeated_permutation(arg_count) do |args|
+        @filters.send(method, *args)
+      rescue Liquid::Error
+        nil
       end
     end
   end
@@ -824,6 +926,72 @@ class StandardFiltersTest < Minitest::Test
     ]
 
     assert_equal([{ "foo" => true }, { "foo" => "for sure" }], @filters.where(input, "foo"))
+  end
+
+  def test_sum_with_all_numbers
+    input = [1, 2]
+
+    assert_equal(3, @filters.sum(input))
+    assert_raises(Liquid::ArgumentError, "cannot select the property 'quantity'") do
+      @filters.sum(input, "quantity")
+    end
+  end
+
+  def test_sum_with_numeric_strings
+    input = [1, 2, "3", "4"]
+
+    assert_equal(10, @filters.sum(input))
+    assert_raises(Liquid::ArgumentError, "cannot select the property 'quantity'") do
+      @filters.sum(input, "quantity")
+    end
+  end
+
+  def test_sum_with_nested_arrays
+    input = [1, [2, [3, 4]]]
+
+    assert_equal(10, @filters.sum(input))
+    assert_raises(Liquid::ArgumentError, "cannot select the property 'quantity'") do
+      @filters.sum(input, "quantity")
+    end
+  end
+
+  def test_sum_with_indexable_map_values
+    input = [{ "quantity" => 1 }, { "quantity" => 2, "weight" => 3 }, { "weight" => 4 }]
+
+    assert_equal(0, @filters.sum(input))
+    assert_equal(3, @filters.sum(input, "quantity"))
+    assert_equal(7, @filters.sum(input, "weight"))
+    assert_equal(0, @filters.sum(input, "subtotal"))
+  end
+
+  def test_sum_with_indexable_non_map_values
+    input = [1, [2], "foo", { "quantity" => 3 }]
+
+    assert_equal(3, @filters.sum(input))
+    assert_raises(Liquid::ArgumentError, "cannot select the property 'quantity'") do
+      @filters.sum(input, "quantity")
+    end
+  end
+
+  def test_sum_with_unindexable_values
+    input = [1, true, nil, { "quantity" => 2 }]
+
+    assert_equal(1, @filters.sum(input))
+    assert_raises(Liquid::ArgumentError, "cannot select the property 'quantity'") do
+      @filters.sum(input, "quantity")
+    end
+  end
+
+  def test_sum_without_property_calls_to_liquid
+    t = TestThing.new
+    Liquid::Template.parse('{{ foo | sum }}').render("foo" => [t])
+    assert(t.foo > 0)
+  end
+
+  def test_sum_with_property_calls_to_liquid_on_property_values
+    t = TestThing.new
+    Liquid::Template.parse('{{ foo | sum: "quantity" }}').render("foo" => [{ "quantity" => t }])
+    assert(t.foo > 0)
   end
 
   private

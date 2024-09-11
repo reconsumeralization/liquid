@@ -29,6 +29,7 @@ module Liquid
   WhitespaceControl           = '-'
   TagStart                    = /\{\%/
   TagEnd                      = /\%\}/
+  TagName                     = /#|\w+/
   VariableSignature           = /\(?[\w\-\.\[\]]\)?/
   VariableSegment             = /[\w\-]/
   VariableStart               = /\{\{/
@@ -36,11 +37,11 @@ module Liquid
   VariableIncompleteEnd       = /\}\}?/
   QuotedString                = /"[^"]*"|'[^']*'/
   QuotedFragment              = /#{QuotedString}|(?:[^\s,\|'"]|#{QuotedString})+/o
-  TagAttributes               = /(\w+)\s*\:\s*(#{QuotedFragment})/o
+  TagAttributes               = /(\w[\w-]*)\s*\:\s*(#{QuotedFragment})/o
   AnyStartingTag              = /#{TagStart}|#{VariableStart}/o
   PartialTemplateParser       = /#{TagStart}.*?#{TagEnd}|#{VariableStart}.*?#{VariableIncompleteEnd}/om
   TemplateParser              = /(#{PartialTemplateParser}|#{AnyStartingTag})/om
-  VariableParser              = /\[[^\]]+\]|#{VariableSegment}+\??/o
+  VariableParser              = /\[(?>[^\[\]]+|\g<0>)*\]|#{VariableSegment}+\??/o
 
   RAISE_EXCEPTION_LAMBDA = ->(_e) { raise }
 
@@ -59,8 +60,8 @@ require 'liquid/forloop_drop'
 require 'liquid/extensions'
 require 'liquid/errors'
 require 'liquid/interrupts'
-require 'liquid/strainer_factory'
 require 'liquid/strainer_template'
+require 'liquid/strainer_factory'
 require 'liquid/expression'
 require 'liquid/context'
 require 'liquid/parser_switching'
@@ -83,8 +84,7 @@ require 'liquid/tokenizer'
 require 'liquid/parse_context'
 require 'liquid/partial_cache'
 require 'liquid/usage'
-require 'liquid/register'
-require 'liquid/static_registers'
+require 'liquid/registers'
 require 'liquid/template_factory'
 
 # Load all the tags of the standard library

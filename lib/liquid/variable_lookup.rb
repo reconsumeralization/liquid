@@ -2,8 +2,7 @@
 
 module Liquid
   class VariableLookup
-    SQUARE_BRACKETED = /\A\[(.*)\]\z/m
-    COMMAND_METHODS  = ['size', 'first', 'last'].freeze
+    COMMAND_METHODS = ['size', 'first', 'last'].freeze
 
     attr_reader :name, :lookups
 
@@ -15,8 +14,8 @@ module Liquid
       lookups = markup.scan(VariableParser)
 
       name = lookups.shift
-      if name =~ SQUARE_BRACKETED
-        name = Expression.parse(Regexp.last_match(1))
+      if name&.start_with?('[') && name&.end_with?(']')
+        name = Expression.parse(name[1..-2])
       end
       @name = name
 
@@ -25,12 +24,16 @@ module Liquid
 
       @lookups.each_index do |i|
         lookup = lookups[i]
-        if lookup =~ SQUARE_BRACKETED
-          lookups[i] = Expression.parse(Regexp.last_match(1))
+        if lookup&.start_with?('[') && lookup&.end_with?(']')
+          lookups[i] = Expression.parse(lookup[1..-2])
         elsif COMMAND_METHODS.include?(lookup)
           @command_flags |= 1 << i
         end
       end
+    end
+
+    def lookup_command?(lookup_index)
+      @command_flags & (1 << lookup_index) != 0
     end
 
     def evaluate(context)
@@ -39,6 +42,9 @@ module Liquid
 
       @lookups.each_index do |i|
         key = context.evaluate(@lookups[i])
+
+        # Cast "key" to its liquid value to enable it to act as a primitive value
+        key = Liquid::Utils.to_liquid_value(key)
 
         # If object is a hash- or array-like object we look for the
         # presence of the key and if its available we return it
@@ -53,7 +59,7 @@ module Liquid
           # Some special cases. If the part wasn't in square brackets and
           # no key with the same name was found we interpret following calls
           # as commands and call them on the current object
-        elsif @command_flags & (1 << i) != 0 && object.respond_to?(key)
+        elsif lookup_command?(i) && object.respond_to?(key)
           object = object.send(key).to_liquid
 
           # No key was present with the desired value and it wasn't one of the directly supported

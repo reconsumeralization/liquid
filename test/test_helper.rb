@@ -37,21 +37,28 @@ module Minitest
   module Assertions
     include Liquid
 
-    def assert_template_result(expected, template, assigns = {}, message = nil)
-      assert_equal(expected, Template.parse(template, line_numbers: true).render!(assigns), message)
+    def assert_template_result(
+      expected, template, assigns = {},
+      message: nil, partials: nil, error_mode: nil, render_errors: false,
+      template_factory: nil
+    )
+      template = Liquid::Template.parse(template, line_numbers: true, error_mode: error_mode&.to_sym)
+      file_system = StubFileSystem.new(partials || {})
+      registers = Liquid::Registers.new(file_system: file_system, template_factory: template_factory)
+      context = Liquid::Context.build(static_environments: assigns, rethrow_errors: !render_errors, registers: registers)
+      output = template.render(context)
+      assert_equal(expected, output, message)
     end
 
-    def assert_template_result_matches(expected, template, assigns = {}, message = nil)
-      return assert_template_result(expected, template, assigns, message) unless expected.is_a?(Regexp)
-
-      assert_match(expected, Template.parse(template, line_numbers: true).render!(assigns), message)
-    end
-
-    def assert_match_syntax_error(match, template, assigns = {})
+    def assert_match_syntax_error(match, template, error_mode: nil)
       exception = assert_raises(Liquid::SyntaxError) do
-        Template.parse(template, line_numbers: true).render(assigns)
+        Template.parse(template, line_numbers: true, error_mode: error_mode&.to_sym).render
       end
       assert_match(match, exception.message)
+    end
+
+    def assert_syntax_error(template, error_mode: nil)
+      assert_match_syntax_error("", template, error_mode: error_mode)
     end
 
     def assert_usage_increment(name, times: 1)
@@ -72,21 +79,21 @@ module Minitest
     end
 
     def with_global_filter(*globals)
-      original_global_filters = Liquid::StrainerFactory.instance_variable_get(:@global_filters)
-      Liquid::StrainerFactory.instance_variable_set(:@global_filters, [])
-      globals.each do |global|
-        Liquid::StrainerFactory.add_global_filter(global)
-      end
-
-      Liquid::StrainerFactory.send(:strainer_class_cache).clear
+      original_global_cache = Liquid::StrainerFactory::GlobalCache
+      Liquid::StrainerFactory.send(:remove_const, :GlobalCache)
+      Liquid::StrainerFactory.const_set(:GlobalCache, Class.new(Liquid::StrainerTemplate))
 
       globals.each do |global|
         Liquid::Template.register_filter(global)
       end
-      yield
-    ensure
       Liquid::StrainerFactory.send(:strainer_class_cache).clear
-      Liquid::StrainerFactory.instance_variable_set(:@global_filters, original_global_filters)
+      begin
+        yield
+      ensure
+        Liquid::StrainerFactory.send(:remove_const, :GlobalCache)
+        Liquid::StrainerFactory.const_set(:GlobalCache, original_global_cache)
+        Liquid::StrainerFactory.send(:strainer_class_cache).clear
+      end
     end
 
     def with_error_mode(mode)
@@ -116,6 +123,47 @@ end
 class ThingWithToLiquid
   def to_liquid
     'foobar'
+  end
+end
+
+class SettingsDrop < Liquid::Drop
+  def initialize(settings)
+    super()
+    @settings = settings
+  end
+
+  def liquid_method_missing(key)
+    @settings[key]
+  end
+end
+
+class IntegerDrop < Liquid::Drop
+  def initialize(value)
+    super()
+    @value = value.to_i
+  end
+
+  def to_s
+    @value.to_s
+  end
+
+  def to_liquid_value
+    @value
+  end
+end
+
+class BooleanDrop < Liquid::Drop
+  def initialize(value)
+    super()
+    @value = value
+  end
+
+  def to_liquid_value
+    @value
+  end
+
+  def to_s
+    @value ? "Yay" : "Nay"
   end
 end
 
@@ -162,8 +210,10 @@ class StubTemplateFactory
     @count = 0
   end
 
-  def for(_template_name)
+  def for(template_name)
     @count += 1
-    Liquid::Template.new
+    template = Liquid::Template.new
+    template.name = "some/path/" + template_name
+    template
   end
 end

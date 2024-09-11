@@ -1,9 +1,50 @@
 # Liquid Change Log
 
-## 5.0.2 (unreleased)
+## 5.4.0 2022-07-29
+
+### Breaking Changes
+* Drop support for end-of-life Ruby versions (2.5 and 2.6) (#1578) [Andy Waite]
+
+### Features
+* Allow `#` to be used as an inline comment tag (#1498) [CP Clermont]
+
+### Fixes
+* `PartialCache` now shares snippet cache with subcontexts by default (#1553) [Chris AtLee]
+* Hash registers no longer leak into subcontexts as static registers (#1564) [Chris AtLee]
+* Fix `ParseTreeVisitor` for `with` variable expressions in `Render` tag (#1596) [CP Clermont]
+
+### Changed
+* Liquid::Context#registers now always returns a Liquid::Registers object, though supports the most used Hash functions for compatibility (#1553)
+
+## 5.3.0 2022-03-22
+
+### Fixes
+* StandardFilter: Fix missing @context on iterations (#1525) [Thierry Joyal]
+* Fix warning about block and default value in `static_registers.rb` (#1531) [Peter Zhu]
+
+### Deprecation
+* Condition#evaluate to require mandatory context argument in Liquid 6.0.0 (#1527) [Thierry Joyal]
+
+## 5.2.0 2022-03-01
+
+### Features
+* Add `remove_last`, and `replace_last` filters (#1422) [Anders Hagbard]
+* Eagerly cache global filters (#1524) [Jean Boussier]
+
+### Fixes
+* Fix some internal errors in filters from invalid input (#1476) [Dylan Thacker-Smith]
+* Allow dash in filter kwarg name for consistency with Liquid::C (#1518) [CP Clermont]
+
+## 5.1.0 / 2021-09-09
+
+### Features
+* Add `base64_encode`, `base64_decode`, `base64_url_safe_encode`, and `base64_url_safe_decode` filters (#1450) [Daniel Insley]
+* Introduce `to_liquid_value` in `Liquid::Drop` (#1441) [Michael Go]
 
 ### Fixes
 * Fix support for using a String subclass for the liquid source (#1421) [Dylan Thacker-Smith]
+* Add `ParseTreeVisitor` to `RangeLookup` (#1470) [CP Clermont]
+* Translate `RangeError` to `Liquid::Error` for `truncatewords` with large int (#1431) [Dylan Thacker-Smith]
 
 ## 5.0.1 / 2021-03-24
 

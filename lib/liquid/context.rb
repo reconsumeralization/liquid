@@ -26,9 +26,9 @@ module Liquid
       @environments = [environments]
       @environments.flatten!
 
-      @static_environments = [static_environments].flat_map(&:freeze).freeze
+      @static_environments = [static_environments].flatten(1).freeze
       @scopes              = [(outer_scope || {})]
-      @registers           = registers
+      @registers           = registers.is_a?(Registers) ? registers : Registers.new(registers)
       @errors              = []
       @partial             = false
       @strict_variables    = false
@@ -38,6 +38,10 @@ module Liquid
       @filters             = []
       @global_filter       = nil
       @disabled_tags       = {}
+
+      @registers.static[:cached_partials] ||= {}
+      @registers.static[:file_system] ||= Liquid::Template.file_system
+      @registers.static[:template_factory] ||= Liquid::TemplateFactory.new
 
       self.exception_renderer = Template.default_exception_renderer
       if rethrow_errors
@@ -124,7 +128,7 @@ module Liquid
     #      context['var'] = 'hi'
     #   end
     #
-    #   context['var]  #=> nil
+    #   context['var']  #=> nil
     def stack(new_scope = {})
       push(new_scope)
       yield
@@ -140,7 +144,7 @@ module Liquid
       self.class.build(
         resource_limits: resource_limits,
         static_environments: static_environments,
-        registers: StaticRegisters.new(registers)
+        registers: Registers.new(registers),
       ).tap do |subcontext|
         subcontext.base_scope_depth   = base_scope_depth + 1
         subcontext.exception_renderer = exception_renderer
